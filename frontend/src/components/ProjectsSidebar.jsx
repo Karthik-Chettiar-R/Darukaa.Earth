@@ -42,7 +42,7 @@ export default function ProjectsSidebar({ projects = [] }) {
 
       <div className="flex-1" />
       <p className="mt-4 border-t border-[rgba(250,246,236,0.1)] pt-4 text-[12.5px] leading-[1.5] text-[var(--moss-300)]">
-        Last synced 6 minutes ago from field sensors.
+        Last synced on 1st september 2026
       </p>
     </aside>
   )

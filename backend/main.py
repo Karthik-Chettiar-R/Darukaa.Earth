@@ -65,13 +65,32 @@ class SiteResponse(BaseModel):
     id: int
     name: str
     location: dict
+    created_at: datetime
 
 
 class ProjectWithSitesResponse(BaseModel):
     id: int
     name: str
     color: str
+    created_at: datetime
     sites: list[SiteResponse]
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    carbon_storage: float
+
+
+class AnalyticsPoint(BaseModel):
+    recorded_at: str
+    carbon_storage: float
+    biodiversity_index: float
+
+
+class SiteAnalyticsResponse(BaseModel):
+    site: SiteResponse
+    project_name: str
+    project_color: str
+    analytics: list[AnalyticsPoint]
 
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -187,8 +206,10 @@ def list_projects(database=Depends(get_db)):
             p.id,
             p.name,
             p.color,
+            p.created_at,
             s.id,
             s.name,
+            s.created_at,
             ST_AsGeoJSON(s.location)::json
         FROM projects p
         LEFT JOIN sites s ON s.project_id = p.id
@@ -197,22 +218,96 @@ def list_projects(database=Depends(get_db)):
     ).fetchall()
 
     projects_by_id = {}
-    for project_id, project_name, project_color, site_id, site_name, location in rows:
+    for project_id, project_name, project_color, project_created_at, site_id, site_name, site_created_at, location in rows:
         if project_id not in projects_by_id:
             projects_by_id[project_id] = {
                 "id": project_id,
                 "name": project_name,
                 "color": project_color,
+                "created_at": project_created_at,
                 "sites": [],
             }
         if site_id is not None:
             projects_by_id[project_id]["sites"].append({
                 "id": site_id,
                 "name": site_name,
+                "created_at": site_created_at,
                 "location": json.loads(location) if isinstance(location, str) else location,
             })
 
     return list(projects_by_id.values())
+
+
+@app.get("/api/projects/{project_id}/analytics", response_model=list[AnalyticsPoint])
+def project_analytics(project_id: int, database=Depends(get_db)):
+    rows = database.execute(
+        """
+        SELECT
+            a.recorded_at,
+            COALESCE(SUM(a.carbon_storage), 0),
+            COALESCE(AVG(a.biodiversity_index), 0)
+        FROM site_analytics a
+        JOIN sites s ON s.id = a.site_id
+        WHERE s.project_id = %s
+        GROUP BY a.recorded_at
+        ORDER BY a.recorded_at ASC
+        """,
+        (project_id,),
+    ).fetchall()
+    return [
+        AnalyticsPoint(
+            recorded_at=recorded_at.isoformat(),
+            carbon_storage=float(carbon_storage),
+            biodiversity_index=float(biodiversity_index),
+        )
+        for recorded_at, carbon_storage, biodiversity_index in rows
+    ]
+
+
+@app.get("/api/analytics/summary", response_model=AnalyticsSummaryResponse)
+def analytics_summary(database=Depends(get_db)):
+    carbon_storage = database.execute(
+        "SELECT COALESCE(SUM(carbon_storage), 0) FROM site_analytics"
+    ).fetchone()[0]
+    return AnalyticsSummaryResponse(carbon_storage=float(carbon_storage))
+
+
+@app.get("/api/sites/{site_id}/analytics", response_model=SiteAnalyticsResponse)
+def site_analytics(site_id: int, database=Depends(get_db)):
+    site = database.execute(
+        """
+        SELECT s.id, s.name, ST_AsGeoJSON(s.location)::json, s.created_at, p.name, p.color
+        FROM sites s
+        JOIN projects p ON p.id = s.project_id
+        WHERE s.id = %s
+        """,
+        (site_id,),
+    ).fetchone()
+    if not site:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+
+    rows = database.execute(
+        """
+        SELECT recorded_at, carbon_storage, biodiversity_index
+        FROM site_analytics
+        WHERE site_id = %s
+        ORDER BY recorded_at ASC
+        """,
+        (site_id,),
+    ).fetchall()
+    return SiteAnalyticsResponse(
+        site=SiteResponse(id=site[0], name=site[1], location=site[2], created_at=site[3]),
+        project_name=site[4],
+        project_color=site[5],
+        analytics=[
+            AnalyticsPoint(
+                recorded_at=recorded_at.isoformat(),
+                carbon_storage=float(carbon_storage),
+                biodiversity_index=float(biodiversity_index),
+            )
+            for recorded_at, carbon_storage, biodiversity_index in rows
+        ],
+    )
 
 
 @app.post("/api/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

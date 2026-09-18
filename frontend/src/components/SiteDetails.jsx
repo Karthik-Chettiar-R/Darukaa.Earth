@@ -1,4 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { useState } from 'react'
+import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
+import Map from './Map'
 import {
   CategoryScale,
   Chart,
@@ -12,56 +16,29 @@ import {
 
 Chart.register(CategoryScale, Filler, LinearScale, LineController, LineElement, PointElement, Tooltip)
 
-const siteData = {
-  'mumbai-coast': {
-    name: 'Mumbai coast',
-    siteId: 'MUM-001',
-    projectName: 'Mangrove restoration',
-    dateCreated: '12 February 2026',
-    color: 'var(--leaf-400)',
-  },
-  'thane-creek': {
-    name: 'Thane creek',
-    siteId: 'MUM-002',
-    projectName: 'Mangrove restoration',
-    dateCreated: '12 February 2026',
-    color: 'var(--moss-500)',
-  },
-  'north-restoration-plot': {
-    name: 'North restoration plot',
-    siteId: 'MUM-003',
-    projectName: 'Mangrove restoration',
-    dateCreated: '12 February 2026',
-    color: 'var(--forest-700)',
-  },
-  'pune-district': {
-    name: 'Pune district',
-    siteId: 'PUN-001',
-    projectName: 'Urban forest initiative',
-    dateCreated: '04 March 2026',
-    color: 'var(--leaf-400)',
-  },
-  'aundh-community-grove': {
-    name: 'Aundh community grove',
-    siteId: 'PUN-002',
-    projectName: 'Urban forest initiative',
-    dateCreated: '04 March 2026',
-    color: 'var(--moss-500)',
-  },
-}
-
-const fallbackSite = {
-  name: 'New monitoring site',
-  siteId: 'SITE-000',
-  projectName: 'New conservation project',
-  dateCreated: '18 September 2026',
-  color: 'var(--leaf-400)',
+function formatCreatedAt(value) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(value))
 }
 
 export default function SiteDetails({ siteId, onBack }) {
-  const site = siteData[siteId] ?? fallbackSite
+  const [site, setSite] = useState(null)
+  const [analytics, setAnalytics] = useState([])
+  const [error, setError] = useState('')
   const carbonChart = useRef(null)
   const biodiversityChart = useRef(null)
+
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/sites/${siteId}/analytics`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('darukaa_access_token')}` },
+    }).then((response) => {
+      setSite(response.data)
+      setAnalytics(response.data.analytics)
+    }).catch(() => setError('Could not load this site.'))
+  }, [siteId])
 
   useEffect(() => {
     const styles = getComputedStyle(document.documentElement)
@@ -69,9 +46,25 @@ export default function SiteDetails({ siteId, onBack }) {
     const lineSoft = styles.getPropertyValue('--line-soft').trim()
     const inkSoft = styles.getPropertyValue('--ink-soft').trim()
 
-    const charts = [carbonChart, biodiversityChart].map((canvasRef) => new Chart(canvasRef.current, {
+    if (!site || !carbonChart.current || !biodiversityChart.current) return undefined
+
+    const charts = [
+      [carbonChart, 'Carbon storage', analytics.map((point) => point.carbon_storage)],
+      [biodiversityChart, 'Biodiversity index', analytics.map((point) => point.biodiversity_index)],
+    ].map(([canvasRef, label, values]) => new Chart(canvasRef.current, {
       type: 'line',
-      data: { labels: [], datasets: [] },
+      data: {
+        labels: analytics.map((point) => point.recorded_at),
+        datasets: values.length ? [{
+          label,
+          data: values,
+          borderColor: styles.getPropertyValue('--moss-500').trim(),
+          backgroundColor: `${styles.getPropertyValue('--moss-500').trim()}33`,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2,
+        }] : [],
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -96,7 +89,15 @@ export default function SiteDetails({ siteId, onBack }) {
     }))
 
     return () => charts.forEach((chart) => chart.destroy())
-  }, [])
+  }, [analytics, site])
+
+  if (error) {
+    return <main className="flex min-h-screen items-center justify-center bg-[var(--cream-200)] text-sm text-[var(--forest-800)]"><div className="text-center"><p>{error}</p><button type="button" onClick={onBack} className="mt-4 rounded-[8px] border border-[var(--line)] bg-[var(--white)] px-4 py-2">Back</button></div></main>
+  }
+
+  if (!site) {
+    return <main className="flex min-h-screen items-center justify-center bg-[var(--cream-200)] text-sm text-[var(--ink-soft)]">Loading site...</main>
+  }
 
   return (
     <main className="min-h-screen bg-[var(--cream-200)] px-5 py-5 text-[var(--ink)] sm:px-8 sm:py-7 lg:px-10">
@@ -126,16 +127,16 @@ export default function SiteDetails({ siteId, onBack }) {
                 ×
               </button>
             </div>
-            <h1 className="mt-3 font-display text-[25px] font-medium leading-tight text-[var(--forest-900)]">{site.name}</h1>
+            <h1 className="mt-3 font-display text-[25px] font-medium leading-tight text-[var(--forest-900)]">{site.site.name}</h1>
 
-            <div className="mt-8 flex justify-center rounded-[14px] border border-[var(--line-soft)] bg-[var(--cream-100)] py-8">
-              <span className="h-28 w-36 [clip-path:polygon(8%_15%,88%_27%,100%_82%,38%_100%)]" style={{ backgroundColor: site.color }} />
+            <div className="relative mt-8 h-[180px] overflow-hidden rounded-[14px] border border-[var(--line-soft)] bg-[var(--cream-100)]">
+              <Map showExpand={false} projects={[{ id: site.project_name, name: site.project_name, color: site.project_color, sites: [site.site] }]} focusGeometry={site.site.location} />
             </div>
 
             <dl className="mt-7 space-y-4">
-              <Detail label="Site ID" value={site.siteId} />
-              <Detail label="Project" value={site.projectName} />
-              <Detail label="Date created" value={site.dateCreated} />
+              <Detail label="Site ID" value={site.site.id} />
+              <Detail label="Project" value={site.project_name} />
+              <Detail label="Date created" value={formatCreatedAt(site.site.created_at)} />
             </dl>
           </aside>
 
@@ -145,8 +146,8 @@ export default function SiteDetails({ siteId, onBack }) {
               <h2 className="mt-1 font-display text-[22px] font-medium text-[var(--forest-900)]">Site performance</h2>
             </div>
             <div className="space-y-5">
-              <ChartPanel title="Carbon storage" description="Data will appear as field measurements are collected." canvasRef={carbonChart} />
-              <ChartPanel title="Biodiversity index" description="Data will appear as field measurements are collected." canvasRef={biodiversityChart} />
+              <ChartPanel title="Carbon storage" description={analytics.length ? 'Site measurements over time.' : 'No carbon measurements recorded yet.'} canvasRef={carbonChart} hasData={analytics.length > 0} />
+              <ChartPanel title="Biodiversity index" description={analytics.length ? 'Site measurements over time.' : 'No biodiversity measurements recorded yet.'} canvasRef={biodiversityChart} hasData={analytics.length > 0} />
             </div>
           </div>
         </section>
@@ -164,7 +165,7 @@ function Detail({ label, value }) {
   )
 }
 
-function ChartPanel({ title, description, canvasRef }) {
+function ChartPanel({ title, description, canvasRef, hasData }) {
   return (
     <section className="rounded-[14px] border border-[var(--line-soft)] bg-[var(--cream-100)] p-4 sm:p-5">
       <div className="mb-3 flex items-start justify-between gap-4">
@@ -172,7 +173,7 @@ function ChartPanel({ title, description, canvasRef }) {
           <h3 className="font-display text-[17px] font-medium text-[var(--forest-900)]">{title}</h3>
           <p className="mt-1 text-xs text-[var(--ink-soft)]">{description}</p>
         </div>
-        <span className="rounded-[6px] bg-[var(--cream-300)] px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)]">No data</span>
+        <span className="rounded-[6px] bg-[var(--cream-300)] px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)]">{hasData ? 'Live data' : 'No data'}</span>
       </div>
       <div className="h-[190px] rounded-[9px] border border-[var(--line-soft)] bg-[var(--white)] p-3 sm:h-[220px]">
         <canvas ref={canvasRef} />

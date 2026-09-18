@@ -14,6 +14,7 @@ function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('darukaa_access_token')))
   const [projects, setProjects] = useState([])
+  const [carbonStorage, setCarbonStorage] = useState(0)
 
   useEffect(() => {
     const handlePopState = () => setPath(window.location.pathname)
@@ -24,9 +25,20 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    axios.get(`${API_BASE_URL}/api/projects`, {
+    const requestConfig = {
       headers: { Authorization: `Bearer ${localStorage.getItem('darukaa_access_token')}` },
-    }).then((response) => setProjects(response.data)).catch(() => setProjects([]))
+    }
+
+    Promise.all([
+      axios.get(`${API_BASE_URL}/api/projects`, requestConfig),
+      axios.get(`${API_BASE_URL}/api/analytics/summary`, requestConfig),
+    ]).then(([projectsResponse, summaryResponse]) => {
+      setProjects(projectsResponse.data)
+      setCarbonStorage(summaryResponse.data.carbon_storage)
+    }).catch(() => {
+      setProjects([])
+      setCarbonStorage(0)
+    })
   }, [isAuthenticated, path])
 
   const navigate = (destination) => {
@@ -89,16 +101,13 @@ function App() {
           <div className="mb-6 grid grid-cols-1 gap-[18px] sm:grid-cols-3">
             <Metric label="No. of projects" value={projects.length} />
             <Metric label="No. of sites" value={projects.reduce((total, project) => total + (project.sites?.length || 0), 0)} />
-            <Metric label="Carbon reduced" value="4,210" unit="tCO2e" trend="Up 8% since last quarter" accent />
+            <Metric label="Carbon reduced" value={carbonStorage.toLocaleString()} unit="tCO2e" accent />
           </div>
 
           <section className="overflow-hidden rounded-2xl border border-[var(--line-soft)] bg-[var(--white)]">
             <div className="flex flex-col gap-3 border-b border-[var(--line-soft)] px-[22px] py-4 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-display text-base font-medium text-[var(--forest-900)]">Site map</h2>
-              <div className="flex gap-4 text-xs text-[var(--ink-soft)]">
-                <Legend color="forest-700" label="Restoration site" />
-                <Legend color="moss-500" label="Agroforestry site" />
-              </div>
+              
             </div>
             <div className="relative h-[400px] bg-[var(--cream-100)]">
               <Map projects={projects} />
@@ -121,15 +130,6 @@ function Metric({ label, value, unit, trend, accent = false }) {
       </span>
       {trend && <span className="text-[12.5px] font-medium text-[var(--moss-500)]">{trend}</span>}
     </div>
-  )
-}
-
-function Legend({ color, label }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <i className="h-[9px] w-[9px] rounded-[2px]" style={{ backgroundColor: `var(--${color})` }} />
-      {label}
-    </span>
   )
 }
 

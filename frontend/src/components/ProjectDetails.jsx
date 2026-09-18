@@ -1,37 +1,44 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 import { Chart, CategoryScale, Filler, LinearScale, LineController, LineElement, PointElement, Tooltip } from 'chart.js'
 
 Chart.register(CategoryScale, Filler, LinearScale, LineController, LineElement, PointElement, Tooltip)
 
-const projectData = {
-  'mangrove-restoration': {
-    name: 'Mangrove restoration',
-    dateCreated: '12 February 2026',
-    sites: ['Mumbai coast', 'Thane creek', 'North restoration plot'],
-  },
-  'urban-forest-initiative': {
-    name: 'Urban forest initiative',
-    dateCreated: '04 March 2026',
-    sites: ['Pune district', 'Aundh community grove'],
-  },
-}
-
-const fallbackProject = {
-  name: 'New conservation project',
-  dateCreated: '18 September 2026',
-  sites: ['No sites added yet'],
-}
-
-function toSlug(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+function formatCreatedAt(value) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(value))
 }
 
 export default function ProjectDetails({ projectId, onBack }) {
-  const project = projectData[projectId] ?? fallbackProject
+  const [project, setProject] = useState(null)
+  const [analytics, setAnalytics] = useState([])
+  const [error, setError] = useState('')
   const carbonChart = useRef(null)
   const biodiversityChart = useRef(null)
 
   useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/projects`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('darukaa_access_token')}` },
+    }).then((response) => {
+      const match = response.data.find((item) => String(item.id) === String(projectId))
+      if (match) setProject(match)
+      else setError('Project not found.')
+    }).catch(() => setError('Could not load this project.'))
+  }, [projectId])
+
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/projects/${projectId}/analytics`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('darukaa_access_token')}` },
+    }).then((response) => setAnalytics(response.data)).catch(() => setAnalytics([]))
+  }, [projectId])
+
+  useEffect(() => {
+    if (!project || !carbonChart.current || !biodiversityChart.current) return undefined
+
     const styles = getComputedStyle(document.documentElement)
     const line = styles.getPropertyValue('--line').trim()
     const lineSoft = styles.getPropertyValue('--line-soft').trim()
@@ -39,13 +46,21 @@ export default function ProjectDetails({ projectId, onBack }) {
     const moss = styles.getPropertyValue('--moss-500').trim()
 
     const charts = [
-      [carbonChart, 'Carbon storage'],
-      [biodiversityChart, 'Biodiversity index'],
-    ].map(([canvasRef, label]) => new Chart(canvasRef.current, {
+      [carbonChart, 'Carbon storage', analytics.map((point) => point.carbon_storage)],
+      [biodiversityChart, 'Biodiversity index', analytics.map((point) => point.biodiversity_index)],
+    ].map(([canvasRef, label, values]) => new Chart(canvasRef.current, {
       type: 'line',
       data: {
-        labels: [],
-        datasets: [],
+        labels: analytics.map((point) => point.recorded_at),
+        datasets: values.length ? [{
+          label,
+          data: values,
+          borderColor: moss,
+          backgroundColor: `${moss}33`,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2,
+        }] : [],
       },
       options: {
         responsive: true,
@@ -77,7 +92,15 @@ export default function ProjectDetails({ projectId, onBack }) {
     }))
 
     return () => charts.forEach((chart) => chart.destroy())
-  }, [])
+  }, [analytics, project])
+
+  if (error) {
+    return <main className="flex min-h-screen items-center justify-center bg-[var(--cream-200)] px-5 text-sm text-[var(--forest-800)]"><div className="text-center"><p>{error}</p><button type="button" onClick={onBack} className="mt-4 rounded-[8px] border border-[var(--line)] bg-[var(--white)] px-4 py-2">Back</button></div></main>
+  }
+
+  if (!project) {
+    return <main className="flex min-h-screen items-center justify-center bg-[var(--cream-200)] text-sm text-[var(--ink-soft)]">Loading project...</main>
+  }
 
   return (
     <main className="min-h-screen bg-[var(--cream-200)] px-5 py-5 text-[var(--ink)] sm:px-8 sm:py-7 lg:px-10">
@@ -104,16 +127,16 @@ export default function ProjectDetails({ projectId, onBack }) {
               <div className="mt-3 space-y-2">
                 {project.sites.map((site, index) => (
                   <button
-                    key={site}
+                    key={site.id}
                     type="button"
                     onClick={() => {
-                      window.history.pushState({}, '', `/project/${projectId}/site/${toSlug(site)}`)
+                      window.history.pushState({}, '', `/project/${projectId}/site/${site.id}`)
                       window.dispatchEvent(new PopStateEvent('popstate'))
                     }}
                     className="flex w-full items-center gap-2.5 rounded-[8px] border border-[var(--line-soft)] bg-[var(--cream-100)] px-3 py-2.5 text-left text-[13px] text-[var(--ink-soft)] transition hover:border-[var(--moss-500)] hover:bg-[var(--white)]"
                   >
                     <span className={`h-2 w-2 shrink-0 rounded-full ${index === 0 ? 'bg-[var(--leaf-400)]' : 'bg-[var(--moss-500)]'}`} />
-                    <span className="truncate">{site}</span>
+                    <span className="truncate">{site.name}</span>
                   </button>
                 ))}
               </div>
@@ -121,7 +144,7 @@ export default function ProjectDetails({ projectId, onBack }) {
 
             <div className="mt-auto pt-8">
               <p className="text-xs text-[var(--ink-soft)]">Date created</p>
-              <p className="mt-1 text-sm font-medium text-[var(--forest-900)]">{project.dateCreated}</p>
+              <p className="mt-1 text-sm font-medium text-[var(--forest-900)]">{formatCreatedAt(project.created_at)}</p>
             </div>
           </aside>
 
@@ -135,8 +158,8 @@ export default function ProjectDetails({ projectId, onBack }) {
             </div>
 
             <div className="space-y-5">
-              <ChartPanel title="Carbon storage" description="Data will appear as field measurements are collected." canvasRef={carbonChart} />
-              <ChartPanel title="Biodiversity index" description="Data will appear as field measurements are collected." canvasRef={biodiversityChart} />
+              <ChartPanel title="Carbon storage" description={analytics.length ? 'Project measurements over time.' : 'No carbon measurements recorded yet.'} canvasRef={carbonChart} hasData={analytics.length > 0} />
+              <ChartPanel title="Biodiversity index" description={analytics.length ? 'Project measurements over time.' : 'No biodiversity measurements recorded yet.'} canvasRef={biodiversityChart} hasData={analytics.length > 0} />
             </div>
           </div>
         </section>
@@ -145,7 +168,7 @@ export default function ProjectDetails({ projectId, onBack }) {
   )
 }
 
-function ChartPanel({ title, description, canvasRef }) {
+function ChartPanel({ title, description, canvasRef, hasData }) {
   return (
     <section className="rounded-[14px] border border-[var(--line-soft)] bg-[var(--cream-100)] p-4 sm:p-5">
       <div className="mb-3 flex items-start justify-between gap-4">
@@ -153,7 +176,7 @@ function ChartPanel({ title, description, canvasRef }) {
           <h3 className="font-display text-[17px] font-medium text-[var(--forest-900)]">{title}</h3>
           <p className="mt-1 text-xs text-[var(--ink-soft)]">{description}</p>
         </div>
-        <span className="rounded-[6px] bg-[var(--cream-300)] px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)]">No data</span>
+        <span className="rounded-[6px] bg-[var(--cream-300)] px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)]">{hasData ? 'Live data' : 'No data'}</span>
       </div>
       <div className="h-[190px] rounded-[9px] border border-[var(--line-soft)] bg-[var(--white)] p-3 sm:h-[220px]">
         <canvas ref={canvasRef} />

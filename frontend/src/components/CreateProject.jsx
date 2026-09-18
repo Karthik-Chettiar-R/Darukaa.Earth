@@ -10,6 +10,21 @@ const colors = [
   { name: 'Forest', value: 'var(--forest-700)', mapValue: '#2B5039' },
 ]
 
+const additionalColors = [
+  { name: 'Sky', mapValue: '#7CB7D8' },
+  { name: 'Ocean', mapValue: '#397A9E' },
+  { name: 'Indigo', mapValue: '#5967A8' },
+  { name: 'Plum', mapValue: '#86618F' },
+  { name: 'Rose', mapValue: '#C47C86' },
+  { name: 'Coral', mapValue: '#D98D75' },
+  { name: 'Saffron', mapValue: '#D6A64B' },
+  { name: 'Olive', mapValue: '#8A9A57' },
+  { name: 'Teal', mapValue: '#4E9A8D' },
+  { name: 'Slate', mapValue: '#667887' },
+  { name: 'Berry', mapValue: '#9B4D68' },
+  { name: 'Clay', mapValue: '#B8795B' },
+]
+
 function createDraftId() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
 }
@@ -17,13 +32,14 @@ function createDraftId() {
 export default function CreateProject({ onBack }) {
   const [projectName, setProjectName] = useState('')
   const [selectedColor, setSelectedColor] = useState(colors[1].name)
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   const [siteName, setSiteName] = useState('')
   const [sites, setSites] = useState([])
   const [activeSiteId, setActiveSiteId] = useState(null)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
-  const selectedMapColor = colors.find((color) => color.name === selectedColor)?.mapValue || colors[1].mapValue
+  const selectedMapColor = [...colors, ...additionalColors].find((color) => color.name === selectedColor)?.mapValue || colors[1].mapValue
 
   function addSite(event) {
     event.preventDefault()
@@ -105,11 +121,35 @@ export default function CreateProject({ onBack }) {
 
           <fieldset className="mt-6">
             <legend className="text-[13px] font-medium text-[var(--ink-soft)]">Project colour</legend>
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               {colors.map((color) => (
                 <button key={color.name} type="button" aria-label={`Use ${color.name} colour`} aria-pressed={selectedColor === color.name} onClick={() => setSelectedColor(color.name)} className={`h-7 w-7 rounded-full border-2 border-[var(--white)] shadow-[0_0_0_1px_var(--line)] transition hover:scale-105 ${selectedColor === color.name ? 'ring-2 ring-[var(--forest-800)] ring-offset-2' : ''}`} style={{ backgroundColor: color.value }} />
               ))}
+              <button
+                type="button"
+                aria-expanded={isPaletteOpen}
+                onClick={() => setIsPaletteOpen((open) => !open)}
+                className={`flex h-7 items-center rounded-[7px] border px-2 text-[11px] font-medium text-[var(--forest-800)] transition hover:border-[var(--moss-500)] hover:bg-[var(--cream-100)] ${isPaletteOpen ? 'border-[var(--moss-500)] bg-[var(--cream-100)]' : 'border-[var(--line)] bg-[var(--white)]'}`}
+              >
+                More
+              </button>
             </div>
+            {isPaletteOpen && (
+              <div className="mt-4 grid grid-cols-6 gap-2 rounded-[10px] border border-[var(--line-soft)] bg-[var(--cream-100)] p-3">
+                {additionalColors.map((color) => (
+                  <button
+                    key={color.name}
+                    type="button"
+                    aria-label={`Use ${color.name} colour`}
+                    aria-pressed={selectedColor === color.name}
+                    title={color.name}
+                    onClick={() => setSelectedColor(color.name)}
+                    className={`h-7 w-7 rounded-full border-2 border-[var(--white)] shadow-[0_0_0_1px_var(--line)] transition hover:scale-105 ${selectedColor === color.name ? 'ring-2 ring-[var(--forest-800)] ring-offset-2' : ''}`}
+                    style={{ backgroundColor: color.mapValue }}
+                  />
+                ))}
+              </div>
+            )}
           </fieldset>
 
           <div className="mt-8 border-t border-[var(--line-soft)] pt-5">
