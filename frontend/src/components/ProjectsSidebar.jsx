@@ -1,7 +1,8 @@
+
+
 const projects = [
-  { name: 'Mangrove restoration', location: 'Mumbai coast', status: 'Active', slug: 'mangrove-restoration' },
-  { name: 'Urban forest initiative', location: 'Pune district', status: 'Planning', slug: 'urban-forest-initiative' },
-  { name: 'Wetland recovery', location: 'Thane creek', status: 'Active' },
+  { name: 'Kaziranga Buffer Restoration', slug: 'kaziranga-buffer-restoration' },
+  { name: 'Western Ghats Agroforestry', slug: 'western-ghats-agroforestry' },
 ]
 
 export default function ProjectsSidebar() {

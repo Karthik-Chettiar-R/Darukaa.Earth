@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
+import MapboxDraw from "@mapbox/mapbox-gl-draw";
 
 import "mapbox-gl/dist/mapbox-gl.css";
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 
 const projects = [
   { name: "Mangrove restoration", location: "Mumbai coast", color: "var(--leaf-400)" },
@@ -9,10 +11,16 @@ const projects = [
   { name: "Wetland recovery", location: "Thane creek", color: "var(--cream-300)" },
 ];
 
-export default function Map({ showExpand = true }) {
+export default function Map({ showExpand = true, drawMode = false, drawColor = "#6B9169", onPolygonCreated }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const draw = useRef(null);
+  const polygonHandler = useRef(onPolygonCreated);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    polygonHandler.current = onPolygonCreated;
+  }, [onPolygonCreated]);
 
   useEffect(() => {
     mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -28,11 +36,43 @@ export default function Map({ showExpand = true }) {
 
     map.current = newMap;
 
+    if (drawMode) {
+      const drawControl = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: { polygon: true, trash: true },
+        styles: [
+          {
+            id: "project-polygon-fill",
+            type: "fill",
+            filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "true"]],
+            paint: { "fill-color": drawColor, "fill-opacity": 0.32 },
+          },
+          {
+            id: "project-polygon-fill-static",
+            type: "fill",
+            filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "false"]],
+            paint: { "fill-color": drawColor, "fill-opacity": 0.24 },
+          },
+          {
+            id: "project-polygon-line",
+            type: "line",
+            filter: ["==", "$type", "Polygon"],
+            paint: { "line-color": drawColor, "line-width": 2 },
+          },
+        ],
+      });
+
+      draw.current = drawControl;
+      newMap.addControl(drawControl, "top-left");
+      newMap.on("draw.create", (event) => polygonHandler.current?.(event.features[0]));
+    }
+
     return () => {
       newMap.remove();
       map.current = null;
+      draw.current = null;
     };
-  }, []);
+  }, [drawColor, drawMode]);
 
   useEffect(() => {
     map.current?.resize();

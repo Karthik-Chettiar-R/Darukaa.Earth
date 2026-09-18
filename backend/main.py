@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime, timedelta, timezone
 
 import psycopg
@@ -39,6 +40,25 @@ class AuthResponse(BaseModel):
     token_type: str
     name: str
     email: EmailStr
+
+
+class SiteCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    location: dict
+    area_hectares: float | None = None
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    color: str = Field(min_length=1, max_length=100)
+    sites: list[SiteCreate] = Field(min_length=1)
+
+
+class ProjectResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+    site_count: int
 
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -144,3 +164,38 @@ def login_user(payload: LoginRequest, database=Depends(get_db)):
         name=user[0],
         email=user[1],
     )
+
+
+@app.post("/api/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+def create_project(payload: ProjectCreate, database=Depends(get_db)):
+    project_name = payload.name.strip()
+    if not project_name:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Project name cannot be blank")
+
+    for site in payload.sites:
+        if site.location.get("type") != "Polygon":
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Each site must have a polygon location")
+
+    try:
+        project = database.execute(
+            """
+            INSERT INTO projects (name, color)
+            VALUES (%s, %s)
+            RETURNING id, name, color
+            """,
+            (project_name, payload.color),
+        ).fetchone()
+
+        for site in payload.sites:
+            database.execute(
+                """
+                INSERT INTO sites (project_id, name, location, area_hectares)
+                VALUES (%s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), %s)
+                """,
+                (project[0], site.name.strip(), json.dumps(site.location), site.area_hectares),
+            )
+    except psycopg.Error:
+        database.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not save project and sites")
+
+    return ProjectResponse(id=project[0], name=project[1], color=project[2], site_count=len(payload.sites))
