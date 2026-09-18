@@ -1,0 +1,27 @@
+:root {
+  /* Greens - structure and brand */
+  --forest-900: #132A1E;
+  --forest-800: #1B3B29;
+  --forest-700: #2B5039;
+  --moss-500: #6B9169;
+  --moss-300: #9FBB8E;
+  --leaf-400: #B7CD9B;
+
+  /* Neutrals - surfaces */
+  --cream-100: #FAF6EC;
+  --cream-200: #F3ECDB;
+  --cream-300: #E9DFC6;
+  --white: #FFFFFF;
+
+  /* Text */
+  --ink: #1E2A20;
+  --ink-soft: #4C5A4C;
+
+  /* Lines */
+  --line: #DED2AE;
+  --line-soft: #E6DCC0;
+
+  /* Typography */
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Inter', sans-serif;
+}

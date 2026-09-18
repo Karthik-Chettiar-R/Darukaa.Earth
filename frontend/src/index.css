@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+:root {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--cream-200);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+  font: inherit;
+}
