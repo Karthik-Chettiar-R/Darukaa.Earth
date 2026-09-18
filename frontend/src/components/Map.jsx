@@ -5,22 +5,67 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 
-const projects = [
-  { name: "Mangrove restoration", location: "Mumbai coast", color: "var(--leaf-400)" },
-  { name: "Urban forest initiative", location: "Pune district", color: "var(--moss-500)" },
-  { name: "Wetland recovery", location: "Thane creek", color: "var(--cream-300)" },
-];
-
-export default function Map({ showExpand = true, drawMode = false, drawColor = "#6B9169", onPolygonCreated }) {
+export default function Map({ showExpand = true, drawMode = false, drawColor = "#6B9169", onPolygonCreated, projects = [] }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const draw = useRef(null);
   const polygonHandler = useRef(onPolygonCreated);
+  const projectsRef = useRef(projects);
+  const drawColorRef = useRef(drawColor);
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     polygonHandler.current = onPolygonCreated;
   }, [onPolygonCreated]);
+
+  useEffect(() => {
+    projectsRef.current = projects;
+    renderProjectLayers();
+  }, [projects]);
+
+  useEffect(() => {
+    drawColorRef.current = drawColor;
+    if (map.current?.isStyleLoaded()) {
+      if (map.current.getLayer("project-polygon-fill")) {
+        map.current.setPaintProperty("project-polygon-fill", "fill-color", drawColor);
+        map.current.setPaintProperty("project-polygon-fill-static", "fill-color", drawColor);
+        map.current.setPaintProperty("project-polygon-line", "line-color", drawColor);
+      }
+    }
+  }, [drawColor]);
+
+  function renderProjectLayers() {
+    if (!map.current?.isStyleLoaded()) return;
+
+    const features = projectsRef.current.flatMap((project) => (
+      (project.sites || []).map((site) => ({
+        type: "Feature",
+        geometry: site.location,
+        properties: { color: project.color, projectId: project.id },
+      }))
+    ));
+    const sourceData = { type: "FeatureCollection", features };
+    const source = map.current.getSource("persisted-project-sites");
+
+    if (source) {
+      source.setData(sourceData);
+      return;
+    }
+
+    map.current.addSource("persisted-project-sites", { type: "geojson", data: sourceData });
+    map.current.addLayer({
+      id: "persisted-project-sites-fill",
+      type: "fill",
+      source: "persisted-project-sites",
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.28 },
+    });
+    map.current.addLayer({
+      id: "persisted-project-sites-line",
+      type: "line",
+      source: "persisted-project-sites",
+      paint: { "line-color": ["get", "color"], "line-width": 2 },
+    });
+  }
 
   useEffect(() => {
     mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -36,6 +81,8 @@ export default function Map({ showExpand = true, drawMode = false, drawColor = "
 
     map.current = newMap;
 
+    newMap.on("load", renderProjectLayers);
+
     if (drawMode) {
       const drawControl = new MapboxDraw({
         displayControlsDefault: false,
@@ -45,19 +92,19 @@ export default function Map({ showExpand = true, drawMode = false, drawColor = "
             id: "project-polygon-fill",
             type: "fill",
             filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "true"]],
-            paint: { "fill-color": drawColor, "fill-opacity": 0.32 },
+            paint: { "fill-color": drawColorRef.current, "fill-opacity": 0.32 },
           },
           {
             id: "project-polygon-fill-static",
             type: "fill",
             filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "false"]],
-            paint: { "fill-color": drawColor, "fill-opacity": 0.24 },
+            paint: { "fill-color": drawColorRef.current, "fill-opacity": 0.24 },
           },
           {
             id: "project-polygon-line",
             type: "line",
             filter: ["==", "$type", "Polygon"],
-            paint: { "line-color": drawColor, "line-width": 2 },
+            paint: { "line-color": drawColorRef.current, "line-width": 2 },
           },
         ],
       });
@@ -72,7 +119,7 @@ export default function Map({ showExpand = true, drawMode = false, drawColor = "
       map.current = null;
       draw.current = null;
     };
-  }, [drawColor, drawMode]);
+  }, [drawMode]);
 
   useEffect(() => {
     map.current?.resize();
@@ -101,7 +148,7 @@ export default function Map({ showExpand = true, drawMode = false, drawColor = "
                 <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-medium text-[var(--forest-900)]">{project.name}</span>
-                  <span className="mt-1 block text-[11px] text-[var(--ink-soft)]">{project.location}</span>
+                  <span className="mt-1 block text-[11px] text-[var(--ink-soft)]">{project.sites?.length || 0} sites</span>
                 </span>
               </button>
             ))}

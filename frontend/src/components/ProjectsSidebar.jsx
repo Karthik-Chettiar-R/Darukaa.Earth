@@ -1,11 +1,6 @@
 
 
-const projects = [
-  { name: 'Kaziranga Buffer Restoration', slug: 'kaziranga-buffer-restoration' },
-  { name: 'Western Ghats Agroforestry', slug: 'western-ghats-agroforestry' },
-]
-
-export default function ProjectsSidebar() {
+export default function ProjectsSidebar({ projects = [] }) {
   function openCreateProject() {
     window.history.pushState({}, '', '/create-project')
     window.dispatchEvent(new PopStateEvent('popstate'))
@@ -31,17 +26,18 @@ export default function ProjectsSidebar() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {projects.slice(0, 2).map((project, index) => (
+        {projects.map((project, index) => (
           <button
             key={project.name}
             type="button"
-            onClick={() => project.slug && openProject(project.slug)}
+            onClick={() => openProject(project.id)}
             className={`flex items-center gap-2.5 rounded-lg border px-3 py-[11px] text-left text-sm transition ${index === 0 ? 'border-[rgba(250,246,236,0.12)] bg-[var(--forest-700)] font-medium text-[var(--cream-100)]' : 'border-transparent text-[var(--cream-200)] hover:bg-[rgba(250,246,236,0.05)]'}`}
           >
             <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${index === 0 ? 'bg-[var(--leaf-400)]' : 'bg-[var(--moss-300)]'}`} />
-            {project.name}
+            <span className="truncate">{project.name}</span>
           </button>
         ))}
+        {!projects.length && <p className="px-3 py-2 text-xs text-[var(--moss-300)]">No projects yet.</p>}
       </div>
 
       <div className="flex-1" />

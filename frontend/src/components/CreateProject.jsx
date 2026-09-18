@@ -152,7 +152,7 @@ export default function CreateProject({ onBack }) {
             <span className="hidden rounded-[6px] bg-[var(--cream-100)] px-2.5 py-1.5 text-xs text-[var(--ink-soft)] sm:block">{selectedColor} boundary</span>
           </div>
           <div className="relative min-h-0 flex-1">
-            <Map showExpand={false} drawMode={Boolean(activeSiteId)} drawColor={selectedMapColor} onPolygonCreated={handlePolygonCreated} />
+            <Map showExpand={false} drawMode drawColor={selectedMapColor} onPolygonCreated={handlePolygonCreated} />
           </div>
         </section>
       </div>

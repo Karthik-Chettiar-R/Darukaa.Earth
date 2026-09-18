@@ -61,6 +61,19 @@ class ProjectResponse(BaseModel):
     site_count: int
 
 
+class SiteResponse(BaseModel):
+    id: int
+    name: str
+    location: dict
+
+
+class ProjectWithSitesResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+    sites: list[SiteResponse]
+
+
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not JWT_SECRET_KEY:
@@ -164,6 +177,42 @@ def login_user(payload: LoginRequest, database=Depends(get_db)):
         name=user[0],
         email=user[1],
     )
+
+
+@app.get("/api/projects", response_model=list[ProjectWithSitesResponse])
+def list_projects(database=Depends(get_db)):
+    rows = database.execute(
+        """
+        SELECT
+            p.id,
+            p.name,
+            p.color,
+            s.id,
+            s.name,
+            ST_AsGeoJSON(s.location)::json
+        FROM projects p
+        LEFT JOIN sites s ON s.project_id = p.id
+        ORDER BY p.created_at DESC, s.created_at ASC
+        """
+    ).fetchall()
+
+    projects_by_id = {}
+    for project_id, project_name, project_color, site_id, site_name, location in rows:
+        if project_id not in projects_by_id:
+            projects_by_id[project_id] = {
+                "id": project_id,
+                "name": project_name,
+                "color": project_color,
+                "sites": [],
+            }
+        if site_id is not None:
+            projects_by_id[project_id]["sites"].append({
+                "id": site_id,
+                "name": site_name,
+                "location": json.loads(location) if isinstance(location, str) else location,
+            })
+
+    return list(projects_by_id.values())
 
 
 @app.post("/api/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

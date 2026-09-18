@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import './App.css'
 import Map from './components/Map'
 import ProjectsSidebar from './components/ProjectsSidebar'
@@ -7,16 +8,26 @@ import ProjectDetails from './components/ProjectDetails'
 import SiteDetails from './components/SiteDetails'
 import Login from './components/Login'
 import Register from './components/Register'
+import { API_BASE_URL } from './config/api'
 
 function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('darukaa_access_token')))
+  const [projects, setProjects] = useState([])
 
   useEffect(() => {
     const handlePopState = () => setPath(window.location.pathname)
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    axios.get(`${API_BASE_URL}/api/projects`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('darukaa_access_token')}` },
+    }).then((response) => setProjects(response.data)).catch(() => setProjects([]))
+  }, [isAuthenticated, path])
 
   const navigate = (destination) => {
     window.history.pushState({}, '', destination)
@@ -67,7 +78,7 @@ function App() {
           <button onClick={logout} className="rounded-[8px] border border-[rgba(250,246,236,0.25)] bg-transparent px-[18px] py-[9px] text-[13.5px] font-medium text-[var(--cream-100)] transition hover:border-[rgba(250,246,236,0.45)] hover:bg-[rgba(250,246,236,0.08)]">Log out</button>
         </header>
 
-        <ProjectsSidebar />
+        <ProjectsSidebar projects={projects} />
 
         <section className="min-w-0 overflow-y-auto px-5 pb-12 pt-8 sm:px-8 lg:px-10">
           <div className="mb-[26px] flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
@@ -76,8 +87,8 @@ function App() {
           </div>
 
           <div className="mb-6 grid grid-cols-1 gap-[18px] sm:grid-cols-3">
-            <Metric label="No. of projects" value="2" />
-            <Metric label="No. of sites" value="17" />
+            <Metric label="No. of projects" value={projects.length} />
+            <Metric label="No. of sites" value={projects.reduce((total, project) => total + (project.sites?.length || 0), 0)} />
             <Metric label="Carbon reduced" value="4,210" unit="tCO2e" trend="Up 8% since last quarter" accent />
           </div>
 
@@ -90,7 +101,7 @@ function App() {
               </div>
             </div>
             <div className="relative h-[400px] bg-[var(--cream-100)]">
-              <Map />
+              <Map projects={projects} />
               </div>
           </section>
         </section>
