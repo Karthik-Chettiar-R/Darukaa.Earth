@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 
 export default function Login({ onNavigate, onAuthenticated }) {
   const [email, setEmail] = useState('')
@@ -13,7 +14,7 @@ export default function Login({ onNavigate, onAuthenticated }) {
     setIsSubmitting(true)
 
     try {
-      const response = await axios.post('http://localhost:8000/api/login', { email, password })
+      const response = await axios.post(`${API_BASE_URL}/api/login`, { email, password })
       localStorage.setItem('darukaa_access_token', response.data.access_token)
       onAuthenticated()
       onNavigate('/')

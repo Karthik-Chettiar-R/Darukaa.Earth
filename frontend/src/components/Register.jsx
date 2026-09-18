@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 
 
 export default function Register({ onNavigate }) {
@@ -15,7 +16,7 @@ export default function Register({ onNavigate }) {
     setIsSubmitting(true)
 
     try {
-      await axios.post('http://localhost:8000/api/register', {
+      await axios.post(`${API_BASE_URL}/api/register`, {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,

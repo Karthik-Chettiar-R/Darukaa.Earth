@@ -47,6 +47,13 @@ if not JWT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY must be set in the backend .env file")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
+frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+if frontend_url:
+    allowed_origins.append(frontend_url)
 
 
 def validate_bcrypt_password(password: str):
@@ -59,7 +66,7 @@ def validate_bcrypt_password(password: str):
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
