@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote_plus
 
 import psycopg
 from dotenv import load_dotenv
@@ -12,18 +11,11 @@ from jose import jwt
 
 load_dotenv()
 
-#
 def build_database_url():
     configured_url = os.getenv("DATABASE_URL")
-    if configured_url:
-        return configured_url.replace("postgresql+psycopg://", "postgresql://", 1)
-
-    password = quote_plus(os.getenv("DB_PASSWORD", ""))
-    database = os.getenv("DB_NAME", "darukaa")
-    user = quote_plus(os.getenv("DB_USER", "postgres"))
-    host = os.getenv("DB_HOST", "localhost")
-    port = os.getenv("DB_PORT", "5432")
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    if not configured_url:
+        raise RuntimeError("DATABASE_URL must be set in backend/.env")
+    return configured_url.replace("postgresql+psycopg://", "postgresql://", 1)
 
 
 class RegisterRequest(BaseModel):
