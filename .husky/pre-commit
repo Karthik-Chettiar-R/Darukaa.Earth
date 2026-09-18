@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+frontend/node_modules/.bin/lint-staged --config frontend/package.json
